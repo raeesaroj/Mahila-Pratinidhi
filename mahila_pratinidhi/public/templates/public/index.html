@@ -34,14 +34,16 @@
                 }
 
                 .leaflet-marker-icon{
-                  border-radius: 20%;
+                  border-radius: 50%;
                   font-size: 15px;
                   padding:10px;
+                  background: orange
+
 
 
                 }
 
-    .info {
+    .leaflet-right .info {
     padding: 5px;
     margin-top: 30px;
 
@@ -49,7 +51,7 @@
     line-height: 31px;
     background: #a3bfed;
     box-shadow: 0 0 15px rgba(0,0,0,0.2);
-    border: solid;
+    border: groove;
     border-radius: 5px;
 }
 .info h4 {
@@ -57,6 +59,24 @@
     color: #777;
 }
 
+.leaflet-left .legend {
+    margin-bottom: 90px;
+    line-height: 25px;
+    color: #555;
+    padding: 10px 14px;
+    font: 20px Arial, Helvetica, sans-serif;
+    background: white;
+    background: rgba(255,255,255,0.8);
+    box-shadow: 0 0 15px rgba(0,0,0,0.2);
+    border-radius: 5px;
+}
+.legend i {
+    width: 18px;
+    height: 18px;
+    display: inline-block;
+    margin-right: 8px;
+    opacity: 0.7;
+}
 
         </style>
     <section class="topHeroImg">
@@ -120,22 +140,22 @@
                 <div class="mapTab">
                     <div class="tabs">
                         <ul class="tabHolder">
-                            <li class="active">
+                            <li id ="national-all" class="active">
                                 <img src="{% static 'public/image/city-hall.svg' %}" alt="">
                                 <div class="text">NATIONAL ASSEMBLY
                                 </div>
                             </li>
-                            <li>
+                            <li id ="federal-all">
                                 <img src="{% static 'public/image/elementary-school.svg' %}" alt="">
                                 <div class="text">FEDERAL PARLIAMENT
                                 </div>
                             </li>
-                            <li>
+                            <li id ="provincial-all">
                                 <img src="{% static 'public/image/parliament.svg' %}" alt="">
                                 <div class="text">PROVINCIAL ASSEMBLY
                                 </div>
                             </li>
-                            <li>
+                            <li id ="local-all">
                                 <img src="{% static 'public/image/government.svg' %}" alt="">
                                 <div class="text">LOCAL LEVEL GOVERNMENT
                                 </div>
@@ -368,10 +388,12 @@ function add_tile(){
 
 
 
+
 baseMaps = {
     //"Street View": street_view,
     "Google Streets": googleStreets,
     "Google Hybrid": googleHybrid,
+    "Empty" : L.tileLayer(''),
 };
 
 
@@ -385,7 +407,7 @@ add_tile();
 
 //if above was added, popups didnt work
 
-//L.control.layers(baseMaps).addTo(map);
+L.control.layers(baseMaps).addTo(map);
 
 province_data=[];
 
@@ -426,9 +448,9 @@ function calculate_center(layer){
 }
 
 
-var person= L.geoJSON(province_geojson).addTo(map);
-var center_person= person.getBounds().getCenter();
-L.marker(center_person, {icon: mahila_marker});
+//var person= L.geoJSON(province_geojson).addTo(map);
+//var center_person= person.getBounds().getCenter();
+//L.marker(center_person, {icon: mahila_marker});
 
 
   function getColor(d) {
@@ -475,8 +497,29 @@ function resetHighlight(e){
   info.update(basic_data0);
 
 }
+var last_layer =[];
 function zoomToFeature(e) {
-              map.fitBounds(e.target.getBounds());
+
+              if(last_layer[0]){
+              map.removeLayer(last_layer[0]);
+              last_layer.pop();
+            }
+
+              var layer = e.target;
+              map.fitBounds(layer.getBounds());
+              var province= layer.feature.properties.Province;
+
+              var layer = L.geoJson.ajax('http://localhost:8000/api/geojson/province/'+ province,
+                        //{onEachFeature:onEachFeature}
+                        );
+
+               //layer.addTo(map);
+
+
+                last_layer.push(layer);
+                console.log("last_layer",last_layer);
+
+
           }
 
 function onEachFeature(feature, layer) {
@@ -488,6 +531,7 @@ function onEachFeature(feature, layer) {
                   mouseout: resetHighlight,
                   click: zoomToFeature
               });
+
           }
 
 
@@ -532,6 +576,7 @@ for (i=0; i<frequency_array.length; i++){
 
 }
 
+
 function circular_marker(center,number){
 
   var myIcon = L.divIcon({
@@ -543,6 +588,7 @@ function circular_marker(center,number){
       //.bindPopup('divIcon CSS3 popup. <br> Supposed to be easily stylable.');
 }
 
+//info
 var info = L.control({position: 'topright'});
 
 info.onAdd = function(map){
@@ -559,7 +605,92 @@ info.update = function(props) {
 };
 
 info.addTo(map);
+//info-end
 
+//legend
+
+var legend = L.control({position:'bottomleft'});
+
+legend.onAdd = function(map){
+
+  var div = L.DomUtil.create('div','legend'),
+      grades =[0,2,5,10,15,20,25,30],
+      labels =[];
+
+      for (var i =0; i<grades.length;i++){
+
+        if(grades[i+1]){
+
+          div.innerHTML += '<i style ="background:'
+          + getColor(grades[i]+1) +'"></i>'+ grades[i]+
+          '&ndash;' + grades[i + 1] + '<br>';
+        }
+
+        else{
+          div.innerHTML += '<i style ="background:'
+          + getColor(grades[i]+1) +'"></i>'+ grades[i]+
+          '+<br>';
+
+
+        }
+
+
+
+      }
+      return div;
+};
+legend.addTo(map);
+
+
+// onclick functions
+
+//call api
+
+var data_summary_all ={
+  'national': [1,2,2,5,3,30,7]
+
+  }
+
+
+
+$("#national-all").on('click',function(){
+
+for(var i =0; i< data_summary_all['national'].length;i++)
+  {
+  circular_marker(center_for_markers[i],data_summary_all['national'][i]);
+}
+});
+
+$("#federal-all").on('click',function(){
+
+  for(var i =0; i< data_summary_all['national'].length;i++)
+    {
+    circular_marker(center_for_markers[i],data_summary_all['national'][i]);
+  }
+
+
+
+});
+
+$("#provincial-all").on('click',function(){
+
+  for(var i =0; i< data_summary_all['national'].length;i++)
+    {
+    circular_marker(center_for_markers[i],data_summary_all['national'][i]);
+  }
+
+
+
+});
+
+$("#local-all").on('click',function(){
+
+  for(var i =0; i< data_summary_all['national'].length;i++)
+    {
+    circular_marker(center_for_markers[i],data_summary_all['national'][i]);
+  }
+
+});
 
 
 

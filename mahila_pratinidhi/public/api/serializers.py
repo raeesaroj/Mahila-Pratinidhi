@@ -29,6 +29,10 @@ class LocalMahilaSerializer(serializers.ModelSerializer):
         model = MahilaPratinidhiForm
         fields = '__all__'
 
+class MapSerializers(serializers.ListSerializer):
+    map_data = serializers.DictField()
+
+
 class AgeSerializers(serializers.ListSerializer):
     total_age = serializers.ListField()
     provinces_average_age = serializers.ListField()
@@ -36,9 +40,20 @@ class AgeSerializers(serializers.ListSerializer):
     nationale = serializers.ListField()
     federal= serializers.ListField()
 
-class EthnicitySerializers(serializers.ListSerializer):
-    ethnicity = serializers.ListField()
 
+class EthnicitySerializers(serializers.ListSerializer):
+    ethnicity_data = serializers.DictField()
+
+
+class MotherTongueSerializers(serializers.ListSerializer):
+    mother_tongue = serializers.DictField()
+
+class EducationSerializers(serializers.ListSerializer):
+    educational_qualification = serializers.DictField()
+
+
+class PoliticalEngagementSerializers(serializers.ListSerializer):
+    political_engagement = serializers.DictField()
 
     
 

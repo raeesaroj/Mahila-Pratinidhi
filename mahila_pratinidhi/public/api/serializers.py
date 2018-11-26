@@ -29,3 +29,17 @@ class LocalMahilaSerializer(serializers.ModelSerializer):
         model = MahilaPratinidhiForm
         fields = '__all__'
 
+class AgeSerializers(serializers.ListSerializer):
+    total_age = serializers.ListField()
+    provinces_average_age = serializers.ListField()
+    province = serializers.ListField()
+    nationale = serializers.ListField()
+    federal= serializers.ListField()
+
+class EthnicitySerializers(serializers.ListSerializer):
+    ethnicity = serializers.ListField()
+
+
+    
+
+

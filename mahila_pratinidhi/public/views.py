@@ -139,6 +139,7 @@ class RastriyaMahilaDetail(TemplateView):
 
     def get(self, request, *args, **kwargs):
         form = RastriyaShava.objects.get(id=self.kwargs.get('pk'))
+        print(form.marital_status)
         return render(request, self.template_name, {'form':form})
 
 
@@ -208,9 +209,9 @@ class DataVisualize(TemplateView):
 class NewsView(TemplateView):
     template_name = 'public/news-detail.html'
 
-
-    def test_func(self):
-        return not self.request.user.is_superuser
+    def get(self, request, *args, **kwargs):
+        news = News.objects.get(id=self.kwargs.get('pk'))
+        return render(request, self.template_name, {'news':news})
 
 
 def read_view(request, ):
@@ -226,4 +227,5 @@ def read_view(request, ):
 
 
 class Detail(TemplateView):
-    template_name = 'public/lists.html' 
+    template_name = 'public/lists.html'
+

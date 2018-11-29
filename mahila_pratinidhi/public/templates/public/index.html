@@ -23,6 +23,13 @@
         <style>
                 /* Always set the map height explicitly to define the size of the div
                  * element that contains the map. */
+                 .custom .leaflet-popup-tip,
+                 .custom .leaflet-popup-content-wrapper {
+                    background: white;
+                    color: blue;
+                    font-size:20px;
+}
+
                 #map {
                   height: 100%;
                 }
@@ -307,7 +314,7 @@
                             <div class="tags"> General News</div>
                             {% endif %}
                             <div class="pTitle">{{ data.title }}</div>
-                        
+
                     </div>
                 </a>
                 </div>
@@ -454,6 +461,12 @@ function calculate_center(layer){
 //var center_person= person.getBounds().getCenter();
 //L.marker(center_person, {icon: mahila_marker});
 
+//color setting for blue hue
+
+// { return d > 30 ? '#1e43eb' : d > 25 ? '#5f7af1' : d > 20  ? '#8096f4' : d > 15
+// ? '#98a9f6' : d > 10  ? '#c2ccfa' : d > 5   ? '#e8ebfd' : d > 2   ? '#e8ebfd' :
+// d > 0   ? '#e8ebfd' : '#e8ebfd'; }
+
 
   function getColor(d) {
       return d > 30 ? '#1e43eb' :
@@ -478,9 +491,25 @@ function calculate_center(layer){
                     };
           }
 
+
+
+
 function highlightFeature(e){
 
+  var customPopup = "National:<br/>Federal:<br/>Provincial:<br/>Local:<br/>";
+  var customOptions =
+      {
+      'maxWidth': '1000',
+      'className' : 'custom'
+      }
     var layer = e.target;
+    layer.bindPopup(customPopup,customOptions);
+    layer.on('mouseover', function (e) {
+                this.openPopup();
+            });
+    layer.on('mouseout', function (e) {
+                this.closePopup();
+            });
 
     layer.setStyle({
         weight: 5,
@@ -641,15 +670,22 @@ legend.onAdd = function(map){
       }
       return div;
 };
-legend.addTo(map);
+
+//remove legend for now, add if necessary
+
+//legend.addTo(map);
 
 
 // onclick functions
 
 //call api
+$.get("http://localhost:8000/api/maps/",function(data){
+  console.log("datamaps",data);
+})
 
 var data_summary_all ={
-  'national': [1,2,2,5,3,30,7]
+  'national': [1,2,2,5,3,30,7],
+  'provincial':[32, 37, 37, 20, 32, 13, 18]
 
   }
 
@@ -676,9 +712,9 @@ $("#federal-all").on('click',function(){
 
 $("#provincial-all").on('click',function(){
 
-  for(var i =0; i< data_summary_all['national'].length;i++)
+  for(var i =0; i< data_summary_all['provincial'].length;i++)
     {
-    circular_marker(center_for_markers[i],data_summary_all['national'][i]);
+    circular_marker(center_for_markers[i],data_summary_all['provincial'][i]);
   }
 
 

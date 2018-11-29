@@ -63,7 +63,7 @@ def signup(request):
             return HttpResponse('Please confirm your email address to complete the registration')
     else:
         form = UserCreateForm()
-    return render(request, 'public/signup.html', {'form': form})
+    return HttpResponseRedirect('login/')
 
 
 def activate(request, uidb64, token):
@@ -139,7 +139,6 @@ class RastriyaMahilaDetail(TemplateView):
 
     def get(self, request, *args, **kwargs):
         form = RastriyaShava.objects.get(id=self.kwargs.get('pk'))
-        print(form.marital_status)
         return render(request, self.template_name, {'form':form})
 
 

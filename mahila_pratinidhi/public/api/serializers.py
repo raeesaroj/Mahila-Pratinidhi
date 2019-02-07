@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from core.models import RastriyaShava, PratinidhiShava, ProvinceMahilaPratinidhiForm, MahilaPratinidhiForm, District
+from core.models import RastriyaShava, PratinidhiShava, ProvinceMahilaPratinidhiForm, MahilaPratinidhiForm, District,Municipalities
 
 class RastriyaShavaSerializer(serializers.ModelSerializer):
     
@@ -77,6 +77,11 @@ class DistrictsSerializer(serializers.ModelSerializer):
         model = District
         exclude = ('elected_women', )
 
+class MunicipalitiesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Municipalities
+        fields= '__all__'
+
 
 class HlcitSerializer(serializers.Serializer):
     model = serializers.SerializerMethodField()
@@ -102,4 +107,7 @@ class HlcitSerializer(serializers.Serializer):
         
         elif obj.__class__.__name__ == 'ProvinceMahilaPratinidhiForm':
             return 'province'
+
+
+
 

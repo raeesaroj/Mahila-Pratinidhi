@@ -12,8 +12,8 @@ from rest_framework.decorators import api_view
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 from rest_framework.views import APIView
 from .serializers import RastriyaShavaSerializer, ProvinceSerializer, LocalMahilaSerializer, \
-PratinidhiShavaSerializer, AgeSerializers, DistrictsSerializer, HlcitSerializer
-from core.models import RastriyaShava, PratinidhiShava, ProvinceMahilaPratinidhiForm, MahilaPratinidhiForm, Province, District
+PratinidhiShavaSerializer, AgeSerializers, DistrictsSerializer, HlcitSerializer,MunicipalitiesSerializer
+from core.models import RastriyaShava, PratinidhiShava, ProvinceMahilaPratinidhiForm, MahilaPratinidhiForm, Province, District,Municipalities
 from django.db.models import Avg, Count, Sum
 
 import numpy as np
@@ -31,6 +31,17 @@ def country_geojson(request):
 
     return Response(data)
 
+@api_view(['GET'])
+def municipality_geojson(request):
+
+    data = {}
+    try:
+        with open('jsons/municipality.geojson') as f:
+            data = json.load(f)
+    except:
+        pass
+
+    return Response(data)
 
 @api_view(['GET'])
 def districts_geojson(request):
@@ -184,6 +195,8 @@ class MapViewSet(views.APIView):
         total_list.append(total_dict)
 
         map_api['all']=total_list
+        # import ipdb
+        # ipdb.set_trace()
 
         #for national lists
         national_list = []
@@ -494,6 +507,17 @@ class EthnicityViewSet(views.APIView):
         total_ethnicity['provincial'] = province_ethinicity
 
         #for ethnicities on basis of political parties
+        province_party_caste = ProvinceMahilaPratinidhiForm.objects.values('party_name', 'caste').distinct()\
+        .annotate(total=Count('caste'))
+        pratinidhi_party_caste = PratinidhiShava.objects.values('party_name', 'caste').distinct()\
+        .annotate(total=Count('caste'))
+        national_party_caste = RastriyaShava.objects.values('party_name', 'caste').distinct()\
+        .annotate(total=Count('caste'))
+        local_party_caste = MahilaPratinidhiForm.objects.values('party_name', 'caste').distinct()\
+        .annotate(total=Count('caste'))
+
+        party_caste = list(chain(province_party_caste, pratinidhi_party_caste, national_party_caste, local_party_caste))
+
         castes = []
         for item in prv_castes:
             if item['caste']:
@@ -946,7 +970,7 @@ class PoliticalEngagementViewSet(views.APIView):
         # local_age = MahilaPratinidhiForm.objects.values('age')
 
         # for total years
-        years = list(chain(rastriya_political_year, pratinidhi_political_year, provincial_political_year))
+        years = list(chain(rastriya_political_year, pratinidhi_political_year, provincial_political_year, local_political_year))
 
         total_year_list = []
 
@@ -1525,6 +1549,16 @@ class DistrictsViewSet(ReadOnlyModelViewSet):
             queryset = queryset.filter(province=province_query)
         return queryset
 
+class MunicipalityViewSet(ReadOnlyModelViewSet):
+    serializer_class = MunicipalitiesSerializer
+
+    def get_queryset(self):
+        queryset = Municipalities.objects.all().select_related('district')
+        district_query = self.request.query_params.get('district_id', None)
+        if district_query is not None:
+            queryset = queryset.filter(district=district_query)
+        return queryset 
+
 class HlcitViewSet(ReadOnlyModelViewSet):
     serializer_class = HlcitSerializer
 
@@ -1536,3 +1570,868 @@ class HlcitViewSet(ReadOnlyModelViewSet):
             ProvinceMahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit'])
         )
         return queryset
+
+class LocalAgeViewSet(views.APIView):
+
+    def get(self, request):
+        ages = MahilaPratinidhiForm.objects.values('age')
+        return Response(ages)
+
+class NationalAgeViewSet(views.APIView):
+
+    def get(self, request):
+        ages = RastriyaShava.objects.values('age')
+        return Response(ages)
+
+class FederalAgeViewSet(views.APIView):
+
+    def get(self, request):
+        ages = PratinidhiShava.objects.values('age')
+        return Response(ages)
+
+class ProvinceAgeViewSet(views.APIView):
+
+    def get(self, request):
+        ages = ProvinceMahilaPratinidhiForm.objects.values('age')
+        return Response(ages)
+
+class CompareAllViewSet(views.APIView):
+
+    def get(self, request, *args, **kwargs):
+        container = {} #root dictionary
+        age_list = [] #list to store dictionary of  hlcit1 and hlcit2
+        age_dict = {} #dictionary to store ages of hlcit1 and hlcit2
+        hlcit1_list = [] #stores ages of hlcit1
+        hlcit2_list = [] #stores ages of hlcit2
+
+        national_age_1 = RastriyaShava.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('age')
+        print(type(self.kwargs['hlcit1']))
+        federal_age_1 = PratinidhiShava.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('age')
+        province_age_1 = ProvinceMahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('age')
+        local_age_1 = MahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('age')
+
+        hlcit1_age = chain(national_age_1, federal_age_1, province_age_1, local_age_1) #dictionary of ages of hlcit1
+        for age in hlcit1_age:
+            hlcit1_list.append(int(float(age['age'])))
+
+        age_dict['hlcit1'] = hlcit1_list
+
+        national_age_2 = RastriyaShava.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('age')
+        federal_age_2 = PratinidhiShava.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('age')
+        province_age_2 = ProvinceMahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('age')
+        local_age_2 = MahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('age')
+
+        hlcit2_age = chain(national_age_2, federal_age_2, province_age_2, local_age_2)
+        for age in hlcit2_age:
+            hlcit2_list.append(int(float(age['age'])))
+
+        age_dict['hlcit2'] = hlcit2_list
+
+        age_list.append(age_dict)
+
+        #for EDUCATION
+        national_education_1 = RastriyaShava.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('educational_qualification') \
+            .distinct().annotate(total=Count('educational_qualification'))
+        federal_education_1 = PratinidhiShava.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('educational_qualification') \
+            .distinct().annotate(total=Count('educational_qualification'))
+        province_education_1 = ProvinceMahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('educational_qualification') \
+            .distinct().annotate(total=Count('educational_qualification'))
+        local_education_1 = MahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('educational_qualification') \
+            .distinct().annotate(total=Count('educational_qualification'))
+
+        national_education_2 = RastriyaShava.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('educational_qualification') \
+            .distinct().annotate(total=Count('educational_qualification'))
+        federal_education_2 = PratinidhiShava.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('educational_qualification') \
+            .distinct().annotate(total=Count('educational_qualification'))
+        province_education_2 = ProvinceMahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('educational_qualification') \
+            .distinct().annotate(total=Count('educational_qualification'))
+        local_education_2 = MahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('educational_qualification') \
+            .distinct().annotate(total=Count('educational_qualification'))
+
+        hlcit1_education = chain(national_education_1, federal_education_1, province_education_1, local_education_1)
+        hlcit2_educaition = chain(national_education_2, federal_education_2, province_education_2, local_education_2)
+
+        totals = [] #total education labels in both hlcits' eg: [Literature, Literature, Post Graduate]
+        totals1 =[] #total labels in hlcit1 eg: [Literature]
+        totals2 = [] #total labels in hlcit2 eg: [Literature, Post Graduate]
+
+        for education in hlcit1_education:
+            if education['educational_qualification']:
+                totals.append(education['educational_qualification'])
+                totals1.append(education['educational_qualification'])
+
+        for education in hlcit2_educaition:
+            if education['educational_qualification']:
+                totals.append(education['educational_qualification'])
+                totals2.append(education['educational_qualification'])
+
+        education_labels = np.unique(totals) #unique lables of total labels eg: [Literature, Post Graduate]
+        lbl_list = [] #list to hold each dictionary with different education labels
+        for edu in education_labels:
+            dictt ={}
+            coun1 = 0
+            coun2 = 0
+            dictt['label'] = edu
+            for educat in totals1:
+                if educat == edu:
+                    coun1 = coun1 + 1
+            for educat in totals2:
+                if educat == edu:
+                    coun2 = coun2 + 1
+            dictt['hlcit1'] = coun1
+            dictt['hlcit2'] = coun2
+            lbl_list.append(dictt)
+
+        #for years in political party
+        year_list = []  # list to store dictionary of  hlcit1 and hlcit2
+        year_dict = {}  # dictionary to store ages of hlcit1 and hlcit2
+        hlcit1_list_year = []  # stores ages of hlcit1
+        hlcit2_list_year = []  # stores ages of hlcit2
+
+        national_year_1 = RastriyaShava.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('party_joined_date')
+        federal_year_1 = PratinidhiShava.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('party_joined_date')
+        province_year_1 = ProvinceMahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('party_joined_date')
+        local_year_1 = MahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('party_joined_date')
+
+        hlcit1_year = chain(national_year_1, federal_year_1, province_year_1,local_year_1)  # dictionary of ages of hlcit1
+
+            # import datetime
+            # now = datetime.datetime.now()
+            # yr = 2019
+            # current = 0
+            # nepp = 0
+            #
+            # while (yr == 2019):
+            #     nepp = nepp+2075
+            #     current = now.year
+            #     if current > yr:
+            #         nepp += 1
+            #
+            # print("year: ", yr)
+            # print("current: ", current)
+            # print("nepali: ", nepp)
+
+
+        for year in hlcit1_year:
+            if year['party_joined_date']:
+                hlcit1_list_year.append(2075 - int(float(year['party_joined_date'])))
+        year_dict['hlcit1'] = hlcit1_list_year
+
+        national_year_2 = RastriyaShava.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('party_joined_date')
+        federal_year_2 = PratinidhiShava.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('party_joined_date')
+        province_year_2 = ProvinceMahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('party_joined_date')
+        local_year_2 = MahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('party_joined_date')
+
+        hlcit2_year = chain(national_year_2, federal_year_2, province_year_2, local_year_2)
+        # for year in hlcit2_year:
+        #     hlcit2_list.append(int(float(year['political_engagement'])))
+
+        for year in hlcit2_year:
+            if year['party_joined_date']:
+                hlcit2_list_year.append(2075 - int(float(year['party_joined_date'])))
+        year_dict['hlcit2'] = hlcit2_list_year
+
+        year_list.append(year_dict)
+
+        # for Ethnicity
+        national_caste_1 = RastriyaShava.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('caste') \
+            .distinct().annotate(total=Count('caste'))
+        federal_caste_1 = PratinidhiShava.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('caste') \
+            .distinct().annotate(total=Count('caste'))
+        province_caste_1 = ProvinceMahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('caste') \
+            .distinct().annotate(total=Count('caste'))
+        local_caste_1 = MahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('caste') \
+            .distinct().annotate(total=Count('caste'))
+
+        national_caste_2 = RastriyaShava.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('caste') \
+            .distinct().annotate(total=Count('caste'))
+        federal_caste_2 = PratinidhiShava.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('caste') \
+            .distinct().annotate(total=Count('caste'))
+        province_caste_2 = ProvinceMahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('caste') \
+            .distinct().annotate(total=Count('caste'))
+        local_caste_2 = MahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('caste') \
+            .distinct().annotate(total=Count('caste'))
+
+        hlcit1_caste = chain(national_caste_1, federal_caste_1, province_caste_1, local_caste_1)
+        hlcit2_caste = chain(national_caste_2, federal_caste_2, province_caste_2,
+                                    local_caste_2)
+
+        totals_caste = []  # total education labels in both hlcits' eg: [Literature, Literature, Post Graduate]
+        totals1_caste = []  # total labels in hlcit1 eg: [Literature]
+        totals2_caste = []  # total labels in hlcit2 eg: [Literature, Post Graduate]
+
+        for caste in hlcit1_caste:
+            if caste['caste']:
+                totals_caste.append(caste['caste'])
+                totals1_caste.append(caste['caste'])
+
+        for caste in hlcit2_caste:
+            if caste['caste']:
+                totals_caste.append(caste['caste'])
+                totals2_caste.append(caste['caste'])
+
+        caste_labels = np.unique(totals_caste)  # unique lables of total labels eg: [Literature, Post Graduate]
+        lbl_list_caste = []  # list to hold each dictionary with different education labels
+        for cas in caste_labels:
+            dictt = {}
+            coun1 = 0
+            coun2 = 0
+            dictt['label'] = cas
+            for cast in totals1_caste:
+                print("educat: ", cast)
+                if cast == cas:
+                    coun1 = coun1 + 1
+            for cast in totals2_caste:
+                if cast == cas:
+                    coun2 = coun2 + 1
+            dictt['hlcit1'] = coun1
+            dictt['hlcit2'] = coun2
+            lbl_list_caste.append(dictt)
+
+        # for Party Name
+        national_party_name_1 = RastriyaShava.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('party_name') \
+            .distinct().annotate(total=Count('party_name'))
+        federal_party_name_1 = PratinidhiShava.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('party_name') \
+            .distinct().annotate(total=Count('party_name'))
+        province_party_name_1 = ProvinceMahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit1']).values(
+            'party_name') \
+            .distinct().annotate(total=Count('party_name'))
+        local_party_name_1 = MahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit1']).values('party_name') \
+            .distinct().annotate(total=Count('party_name'))
+
+        national_party_name_2 = RastriyaShava.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('party_name') \
+            .distinct().annotate(total=Count('party_name'))
+        federal_party_name_2 = PratinidhiShava.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('party_name') \
+            .distinct().annotate(total=Count('party_name'))
+        province_party_name_2 = ProvinceMahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit2']).values(
+            'party_name') \
+            .distinct().annotate(total=Count('party_name'))
+        local_party_name_2 = MahilaPratinidhiForm.objects.filter(hlcit_code=self.kwargs['hlcit2']).values('party_name') \
+            .distinct().annotate(total=Count('party_name'))
+
+        hlcit1_party_name = chain(national_party_name_1, federal_party_name_1, province_party_name_1, local_party_name_1)
+        hlcit2_party_name = chain(national_party_name_2, federal_party_name_2, province_party_name_2, local_party_name_2)
+
+        totals_party_name = []  # total education labels in both hlcits' eg: [Literature, Literature, Post Graduate]
+        totals1_party_name = []  # total labels in hlcit1 eg: [Literature]
+        totals2_party_name = []  # total labels in hlcit2 eg: [Literature, Post Graduate]
+
+        for party_name in hlcit1_party_name:
+            if party_name['party_name']:
+                totals_party_name.append(party_name['party_name'])
+                totals1_party_name.append(party_name['party_name'])
+
+        for party_name in hlcit2_party_name:
+            if party_name['party_name']:
+                totals_party_name.append(party_name['party_name'])
+                totals2_party_name.append(party_name['party_name'])
+
+        party_name_labels = np.unique(totals_party_name)  # unique lables of total labels eg: [Literature, Post Graduate]
+        lbl_list_party_name = []  # list to hold each dictionary with different education labels
+        for par in party_name_labels:
+            dictt = {}
+            coun1 = 0
+            coun2 = 0
+            dictt['label'] = par
+            for part in totals1_party_name:
+                print("educat: ", part)
+                if part == par:
+                    coun1 = coun1 + 1
+            for part in totals2_party_name:
+                if part == par:
+                    coun2 = coun2 + 1
+            dictt['hlcit1'] = coun1
+            dictt['hlcit2'] = coun2
+            lbl_list_party_name.append(dictt)
+
+        container['age'] = age_list
+        container['education'] = lbl_list
+        container['Years in Politics'] = year_list
+        container['Ethnicity'] = lbl_list_caste
+        container['Party Name'] = lbl_list_party_name
+        
+        return Response(container)
+
+class CompareProvinceViewSet(views.APIView):
+
+    def get(self, request, *args, **kwargs):
+        container = {} #root dictionary
+        age_list = [] #list to store dictionary of  hlcit1 and hlcit2
+        age_dict = {} #dictionary to store ages of hlcit1 and hlcit2
+        province1_list = [] #stores ages of hlcit1
+        province2_list = [] #stores ages of hlcit2
+
+        national_age_1 = RastriyaShava.objects.filter(province=self.kwargs['province1']).values('age')
+        federal_age_1 = PratinidhiShava.objects.filter(province=self.kwargs['province1']).values('age')
+        province_age_1 = ProvinceMahilaPratinidhiForm.objects.filter(province=self.kwargs['province1']).values('age')
+        local_age_1 = MahilaPratinidhiForm.objects.filter(province=self.kwargs['province1']).values('age')
+        # national_province = Province.objects.values('name').annotate(total=Count('rastriyashava'))
+        # federal_province = Province.objects.values('name').annotate(total=Count('pratinidhishava'))
+        # province_province = Province.objects.values('name').annotate(total=Count('province_mahila_pratinidhi_form'))
+        # province_province = Province.objects.values('name').annotate(total=Count('mahilapratinidhiform'))
+
+        province1_age = chain(national_age_1, federal_age_1, province_age_1, local_age_1) #dictionary of ages of province1
+        for age in province1_age:
+            print("ageeeee for provincee", age['age'])
+            if age['age']:
+                province1_list.append(age['age'])
+
+        age_dict['province1'] = province1_list
+
+        national_age_2 = RastriyaShava.objects.filter(province=self.kwargs['province2']).values('age')
+        federal_age_2 = PratinidhiShava.objects.filter(province=self.kwargs['province2']).values('age')
+        province_age_2 = ProvinceMahilaPratinidhiForm.objects.filter(province=self.kwargs['province2']).values('age')
+        local_age_2 = MahilaPratinidhiForm.objects.filter(province=self.kwargs['province2']).values('age')
+
+        province2_age = chain(national_age_2, federal_age_2, province_age_2, local_age_2)
+        for age in province2_age:
+            if age['age']:
+                province2_list.append(age['age'])
+
+        age_dict['province2'] = province2_list
+
+        age_list.append(age_dict)
+
+        #for EDUCATION
+        national_education_1 = RastriyaShava.objects.filter(province=self.kwargs['province1']).values('educational_qualification') \
+            .distinct().annotate(total=Count('educational_qualification'))
+        federal_education_1 = PratinidhiShava.objects.filter(province=self.kwargs['province1']).values('educational_qualification') \
+            .distinct().annotate(total=Count('educational_qualification'))
+        province_education_1 = ProvinceMahilaPratinidhiForm.objects.filter(province=self.kwargs['province1']).values('educational_qualification') \
+            .distinct().annotate(total=Count('educational_qualification'))
+        local_education_1 = MahilaPratinidhiForm.objects.filter(province=self.kwargs['province1']).values('educational_qualification') \
+            .distinct().annotate(total=Count('educational_qualification'))
+
+        national_education_2 = RastriyaShava.objects.filter(province=self.kwargs['province2']).values('educational_qualification') \
+            .distinct().annotate(total=Count('educational_qualification'))
+        federal_education_2 = PratinidhiShava.objects.filter(province=self.kwargs['province2']).values('educational_qualification') \
+            .distinct().annotate(total=Count('educational_qualification'))
+        province_education_2 = ProvinceMahilaPratinidhiForm.objects.filter(province=self.kwargs['province2']).values('educational_qualification') \
+            .distinct().annotate(total=Count('educational_qualification'))
+        local_education_2 = MahilaPratinidhiForm.objects.filter(province=self.kwargs['province2']).values('educational_qualification') \
+            .distinct().annotate(total=Count('educational_qualification'))
+
+        province1_education = chain(national_education_1, federal_education_1, province_education_1, local_education_1)
+        province2_educaition = chain(national_education_2, federal_education_2, province_education_2, local_education_2)
+
+        totals = [] #total education labels in both hlcits' eg: [Literature, Literature, Post Graduate]
+        totals1 =[] #total labels in province1 eg: [Literature]
+        totals2 = [] #total labels in province2 eg: [Literature, Post Graduate]
+
+        for education in province1_education:
+            if education['educational_qualification']:
+                totals.append(education['educational_qualification'])
+                totals1.append(education['educational_qualification'])
+
+        for education in province2_educaition:
+            if education['educational_qualification']:
+                totals.append(education['educational_qualification'])
+                totals2.append(education['educational_qualification'])
+
+        education_labels = np.unique(totals) #unique lables of total labels eg: [Literature, Post Graduate]
+        lbl_list = [] #list to hold each dictionary with different education labels
+        for edu in education_labels:
+            dictt ={}
+            coun1 = 0
+            coun2 = 0
+            dictt['label'] = edu
+            for educat in totals1:
+                if educat == edu:
+                    coun1 = coun1 + 1
+            for educat in totals2:
+                if educat == edu:
+                    coun2 = coun2 + 1
+            dictt['province1'] = coun1
+            dictt['province2'] = coun2
+            lbl_list.append(dictt)
+        #
+        # #for years in political party
+        year_list = []  # list to store dictionary of  province1 and province2
+        year_dict = {}  # dictionary to store ages of province1 and province2
+        province1_list_year = []  # stores ages of province1
+        province2_list_year = []  # stores ages of province2
+
+        national_year_1 = RastriyaShava.objects.filter(province=self.kwargs['province1']).values('party_joined_date')
+        federal_year_1 = PratinidhiShava.objects.filter(province=self.kwargs['province1']).values('party_joined_date')
+        province_year_1 = ProvinceMahilaPratinidhiForm.objects.filter(province=self.kwargs['province1']).values('party_joined_date')
+        local_year_1 = MahilaPratinidhiForm.objects.filter(province=self.kwargs['province1']).values('party_joined_date')
+
+        province1_year = chain(national_year_1, federal_year_1, province_year_1,local_year_1)  # dictionary of ages of province1
+
+        for year in province1_year:
+            if year['party_joined_date']:
+                province1_list_year.append(2075 - int(float(year['party_joined_date'])))
+        year_dict['province1'] = province1_list_year
+
+        national_year_2 = RastriyaShava.objects.filter(province=self.kwargs['province2']).values('party_joined_date')
+        federal_year_2 = PratinidhiShava.objects.filter(province=self.kwargs['province2']).values('party_joined_date')
+        province_year_2 = ProvinceMahilaPratinidhiForm.objects.filter(province=self.kwargs['province2']).values('party_joined_date')
+        local_year_2 = MahilaPratinidhiForm.objects.filter(province=self.kwargs['province2']).values('party_joined_date')
+
+        province2_year = chain(national_year_2, federal_year_2, province_year_2, local_year_2)
+        # for year in province2_year:
+        #     province2_list.append(int(float(year['political_engagement'])))
+
+        for year in province2_year:
+            if year['party_joined_date']:
+                province2_list_year.append(2075 - int(float(year['party_joined_date'])))
+        year_dict['province2'] = province2_list_year
+
+        year_list.append(year_dict)
+
+        # for Ethnicity
+        national_caste_1 = RastriyaShava.objects.filter(province=self.kwargs['province1']).values('caste') \
+            .distinct().annotate(total=Count('caste'))
+        federal_caste_1 = PratinidhiShava.objects.filter(province=self.kwargs['province1']).values('caste') \
+            .distinct().annotate(total=Count('caste'))
+        province_caste_1 = ProvinceMahilaPratinidhiForm.objects.filter(province=self.kwargs['province1']).values('caste') \
+            .distinct().annotate(total=Count('caste'))
+        local_caste_1 = MahilaPratinidhiForm.objects.filter(province=self.kwargs['province1']).values('caste') \
+            .distinct().annotate(total=Count('caste'))
+
+        national_caste_2 = RastriyaShava.objects.filter(province=self.kwargs['province2']).values('caste') \
+            .distinct().annotate(total=Count('caste'))
+        federal_caste_2 = PratinidhiShava.objects.filter(province=self.kwargs['province2']).values('caste') \
+            .distinct().annotate(total=Count('caste'))
+        province_caste_2 = ProvinceMahilaPratinidhiForm.objects.filter(province=self.kwargs['province2']).values('caste') \
+            .distinct().annotate(total=Count('caste'))
+        local_caste_2 = MahilaPratinidhiForm.objects.filter(province=self.kwargs['province2']).values('caste') \
+            .distinct().annotate(total=Count('caste'))
+
+        province1_caste = chain(national_caste_1, federal_caste_1, province_caste_1, local_caste_1)
+        province2_caste = chain(national_caste_2, federal_caste_2, province_caste_2,
+                                  local_caste_2)
+
+        totals_caste = []  # total education labels in both hlcits' eg: [Literature, Literature, Post Graduate]
+        totals1_caste = []  # total labels in province1 eg: [Literature]
+        totals2_caste = []  # total labels in province2 eg: [Literature, Post Graduate]
+
+        for caste in province1_caste:
+            if caste['caste']:
+                totals_caste.append(caste['caste'])
+                totals1_caste.append(caste['caste'])
+
+        for caste in province2_caste:
+            if caste['caste']:
+                totals_caste.append(caste['caste'])
+                totals2_caste.append(caste['caste'])
+
+        caste_labels = np.unique(totals_caste)  # unique lables of total labels eg: [Literature, Post Graduate]
+        lbl_list_caste = []  # list to hold each dictionary with different education labels
+        for cas in caste_labels:
+            dictt = {}
+            coun1 = 0
+            coun2 = 0
+            dictt['label'] = cas
+            for cast in totals1_caste:
+                print("educat: ", cast)
+                if cast == cas:
+                    coun1 = coun1 + 1
+            for cast in totals2_caste:
+                if cast == cas:
+                    coun2 = coun2 + 1
+            dictt['province1'] = coun1
+            dictt['province2'] = coun2
+            lbl_list_caste.append(dictt)
+
+        # # for Party Name
+        national_party_name_1 = RastriyaShava.objects.filter(province=self.kwargs['province1']).values('party_name') \
+            .distinct().annotate(total=Count('party_name'))
+        federal_party_name_1 = PratinidhiShava.objects.filter(province=self.kwargs['province1']).values('party_name') \
+            .distinct().annotate(total=Count('party_name'))
+        province_party_name_1 = ProvinceMahilaPratinidhiForm.objects.filter(province=self.kwargs['province1']).values(
+            'party_name') \
+            .distinct().annotate(total=Count('party_name'))
+        local_party_name_1 = MahilaPratinidhiForm.objects.filter(province=self.kwargs['province1']).values('party_name') \
+            .distinct().annotate(total=Count('party_name'))
+
+        national_party_name_2 = RastriyaShava.objects.filter(province=self.kwargs['province2']).values('party_name') \
+            .distinct().annotate(total=Count('party_name'))
+        federal_party_name_2 = PratinidhiShava.objects.filter(province=self.kwargs['province2']).values('party_name') \
+            .distinct().annotate(total=Count('party_name'))
+        province_party_name_2 = ProvinceMahilaPratinidhiForm.objects.filter(province=self.kwargs['province2']).values(
+            'party_name') \
+            .distinct().annotate(total=Count('party_name'))
+        local_party_name_2 = MahilaPratinidhiForm.objects.filter(province=self.kwargs['province2']).values('party_name') \
+            .distinct().annotate(total=Count('party_name'))
+
+        province1_party_name = chain(national_party_name_1, federal_party_name_1, province_party_name_1, local_party_name_1)
+        province2_party_name = chain(national_party_name_2, federal_party_name_2, province_party_name_2, local_party_name_2)
+
+        totals_party_name = []  # total education labels in both hlcits' eg: [Literature, Literature, Post Graduate]
+        totals1_party_name = []  # total labels in province1 eg: [Literature]
+        totals2_party_name = []  # total labels in province2 eg: [Literature, Post Graduate]
+
+        for party_name in province1_party_name:
+            if party_name['party_name']:
+                totals_party_name.append(party_name['party_name'])
+                totals1_party_name.append(party_name['party_name'])
+
+        for party_name in province2_party_name:
+            if party_name['party_name']:
+                totals_party_name.append(party_name['party_name'])
+                totals2_party_name.append(party_name['party_name'])
+
+        party_name_labels = np.unique(totals_party_name)  # unique lables of total labels eg: [Literature, Post Graduate]
+        lbl_list_party_name = []  # list to hold each dictionary with different education labels
+        for par in party_name_labels:
+            dictt = {}
+            coun1 = 0
+            coun2 = 0
+            dictt['label'] = par
+            for part in totals1_party_name:
+                print("educat: ", part)
+                if part == par:
+                    coun1 = coun1 + 1
+            for part in totals2_party_name:
+                if part == par:
+                    coun2 = coun2 + 1
+            dictt['province1'] = coun1
+            dictt['province2'] = coun2
+            lbl_list_party_name.append(dictt)
+
+        container['age'] = age_list
+        container['education'] = lbl_list
+        container['Years in Politics'] = year_list
+        container['Ethnicity'] = lbl_list_caste
+        container['Party Name'] = lbl_list_party_name
+        return Response(container)
+
+
+class CompareDistrictViewSet(views.APIView):
+
+    def get(self, request, *args, **kwargs):
+        # import ipdb
+        # ipdb.set_trace()
+        container = {}  # root dictionary
+        age_list = []  # list to store dictionary of  hlcit1 and hlcit2
+        age_dict = {}  # dictionary to store ages of hlcit1 and hlcit2
+        province1_list = []  # stores ages of hlcit1
+        province2_list = []  # stores ages of hlcit2
+        aa = self.kwargs['province1']
+
+        # national_age_1 = RastriyaShava.objects.filter(district__name=self.kwargs['province1']).values('age')
+        # federal_age_1 = PratinidhiShava.objects.filter(district__name=self.kwargs['province1']).values('age')
+        # province_age_1 = ProvinceMahilaPratinidhiForm.objects.filter(district__name=self.kwargs['province1']).values('age')
+        local_age_1 = MahilaPratinidhiForm.objects.filter(district__name=aa).values('age')
+
+        # national_province = Province.objects.values('name').annotate(total=Count('rastriyashava'))
+        # federal_province = Province.objects.values('name').annotate(total=Count('pratinidhishava'))
+        # province_province = Province.objects.values('name').annotate(total=Count('province_mahila_pratinidhi_form'))
+        # province_province = Province.objects.values('name').annotate(total=Count('mahilapratinidhiform'))
+
+        # province1_age = chain(national_age_1, federal_age_1, province_age_1,
+        #                       local_age_1)  # dictionary of ages of province1
+        for age in local_age_1:
+            print("ageeeee for provincee", age['age'])
+            if age['age']:
+                province1_list.append(age['age'])
+
+        age_dict['province1'] = province1_list
+
+        # national_age_2 = RastriyaShava.objects.filter(district__name=self.kwargs['province2']).values('age')
+        # federal_age_2 = PratinidhiShava.objects.filter(district__name=self.kwargs['province2']).values('age')
+        # province_age_2 = ProvinceMahilaPratinidhiForm.objects.filter(district__name=self.kwargs['province2']).values('age')
+        local_age_2 = MahilaPratinidhiForm.objects. filter(district__name=self.kwargs['province2']).values('age')
+
+        # province2_age = chain(national_age_2, federal_age_2, province_age_2, local_age_2)
+        for age in local_age_2:
+            if age['age']:
+                province2_list.append(age['age'])
+
+        age_dict['province2'] = province2_list
+
+        age_list.append(age_dict)
+
+        # for EDUCATION
+        # national_education_1 = RastriyaShava.objects.filter(district=self.kwargs['province1']).values(
+        #     'educational_qualification') \
+        #     .distinct().annotate(total=Count('educational_qualification'))
+        # federal_education_1 = PratinidhiShava.objects.filter(district=self.kwargs['province1']).values(
+        #     'educational_qualification') \
+        #     .distinct().annotate(total=Count('educational_qualification'))
+        # province_education_1 = ProvinceMahilaPratinidhiForm.objects.filter(district=self.kwargs['province1']).values(
+        #     'educational_qualification') \
+        #     .distinct().annotate(total=Count('educational_qualification'))
+        local_education_1 = MahilaPratinidhiForm.objects.filter(district__name=self.kwargs['province1']).values(
+            'educational_qualification') \
+            .distinct().annotate(total=Count('educational_qualification'))
+
+        # national_education_2 = RastriyaShava.objects.filter(district__name=self.kwargs['province2']).values(
+        #     'educational_qualification') \
+        #     .distinct().annotate(total=Count('educational_qualification'))
+        # federal_education_2 = PratinidhiShava.objects.filter(district__name=self.kwargs['province2']).values(
+        #     'educational_qualification') \
+        #     .distinct().annotate(total=Count('educational_qualification'))
+        # province_education_2 = ProvinceMahilaPratinidhiForm.objects.filter(district__name=self.kwargs['province2']).values(
+        #     'educational_qualification') \
+        #     .distinct().annotate(total=Count('educational_qualification'))
+        local_education_2 = MahilaPratinidhiForm.objects.filter(district__name=self.kwargs['province2']).values(
+            'educational_qualification') \
+            .distinct().annotate(total=Count('educational_qualification'))
+
+        # province1_education = chain(national_education_1, federal_education_1, province_education_1, local_education_1)
+        # province2_educaition = chain(national_education_2, federal_education_2, province_education_2, local_education_2)
+
+        totals = []  # total education labels in both hlcits' eg: [Literature, Literature, Post Graduate]
+        totals1 = []  # total labels in province1 eg: [Literature]
+        totals2 = []  # total labels in province2 eg: [Literature, Post Graduate]
+
+        for education in local_education_1:
+            if education['educational_qualification']:
+                totals.append(education['educational_qualification'])
+                totals1.append(education['educational_qualification'])
+
+        for education in local_education_2:
+            if education['educational_qualification']:
+                totals.append(education['educational_qualification'])
+                totals2.append(education['educational_qualification'])
+
+        education_labels = np.unique(totals)  # unique lables of total labels eg: [Literature, Post Graduate]
+        lbl_list = []  # list to hold each dictionary with different education labels
+        for edu in education_labels:
+            dictt = {}
+            coun1 = 0
+            coun2 = 0
+            dictt['label'] = edu
+            for educat in totals1:
+                if educat == edu:
+                    coun1 = coun1 + 1
+            for educat in totals2:
+                if educat == edu:
+                    coun2 = coun2 + 1
+            dictt['province1'] = coun1
+            dictt['province2'] = coun2
+            lbl_list.append(dictt)
+        #
+        # # #for years in political party
+        # year_list = []  # list to store dictionary of  province1 and province2
+        # year_dict = {}  # dictionary to store ages of province1 and province2
+        # province1_list_year = []  # stores ages of province1
+        # province2_list_year = []  # stores ages of province2
+        #
+        # # national_year_1 = RastriyaShava.objects.filter(district__name=self.kwargs['province1']).values('party_joined_date')
+        # # federal_year_1 = PratinidhiShava.objects.filter(district__name=self.kwargs['province1']).values('party_joined_date')
+        # # province_year_1 = ProvinceMahilaPratinidhiForm.objects.filter(district__name=self.kwargs['province1']).values(
+        # #     'party_joined_date')
+        # local_year_1 = MahilaPratinidhiForm.objects.filter(district__name=self.kwargs['province1']).values(
+        #     'party_joined_date')
+        #
+        # # province1_year = chain(national_year_1, federal_year_1, province_year_1,
+        # #                        local_year_1)  # dictionary of ages of province1
+        #
+        # for year in local_year_1:
+        #     if year['party_joined_date']:
+        #         province1_list_year.append(2075 - int(float(year['party_joined_date'])))
+        # year_dict['province1'] = province1_list_year
+        #
+        # # national_year_2 = RastriyaShava.objects.filter(district__name=self.kwargs['province2']).values('party_joined_date')
+        # # federal_year_2 = PratinidhiShava.objects.filter(district__name=self.kwargs['province2']).values('party_joined_date')
+        # # province_year_2 = ProvinceMahilaPratinidhiForm.objects.filter(district__name=self.kwargs['province2']).values(
+        # #     'party_joined_date')
+        # local_year_2 = MahilaPratinidhiForm.objects.filter(district__name=self.kwargs['province2']).values(
+        #     'party_joined_date')
+        #
+        # # province2_year = chain(national_year_2, federal_year_2, province_year_2, local_year_2)
+        # # for year in province2_year:
+        # #     province2_list.append(int(float(year['political_engagement'])))
+        #
+        # for year in local_year_2:
+        #     if year['party_joined_date']:
+        #         province2_list_year.append(2075 - int(float(year['party_joined_date'])))
+        # year_dict['province2'] = province2_list_year
+        #
+        # year_list.append(year_dict)
+
+        # for Ethnicity
+        # national_caste_1 = RastriyaShava.objects.filter(district__name=self.kwargs['province1']).values('caste') \
+        #     .distinct().annotate(total=Count('caste'))
+        # federal_caste_1 = PratinidhiShava.objects.filter(district__name=self.kwargs['province1']).values('caste') \
+        #     .distinct().annotate(total=Count('caste'))
+        # province_caste_1 = ProvinceMahilaPratinidhiForm.objects.filter(district__name=self.kwargs['province1']).values(
+        #     'caste') \
+        #     .distinct().annotate(total=Count('caste'))
+        local_caste_1 = MahilaPratinidhiForm.objects.filter(district__name=self.kwargs['province1']).values('caste') \
+            .distinct().annotate(total=Count('caste'))
+
+        # national_caste_2 = RastriyaShava.objects.filter(district__name=self.kwargs['province2']).values('caste') \
+        #     .distinct().annotate(total=Count('caste'))
+        # federal_caste_2 = PratinidhiShava.objects.filter(district__name=self.kwargs['province2']).values('caste') \
+        #     .distinct().annotate(total=Count('caste'))
+        # province_caste_2 = ProvinceMahilaPratinidhiForm.objects.filter(district__name=self.kwargs['province2']).values(
+        #     'caste') \
+        #     .distinct().annotate(total=Count('caste'))
+        local_caste_2 = MahilaPratinidhiForm.objects.filter(district__name=self.kwargs['province2']).values('caste') \
+            .distinct().annotate(total=Count('caste'))
+
+        # province1_caste = chain(national_caste_1, federal_caste_1, province_caste_1, local_caste_1)
+        # province2_caste = chain(national_caste_2, federal_caste_2, province_caste_2,
+        #                         local_caste_2)
+
+        totals_caste = []  # total education labels in both hlcits' eg: [Literature, Literature, Post Graduate]
+        totals1_caste = []  # total labels in province1 eg: [Literature]
+        totals2_caste = []  # total labels in province2 eg: [Literature, Post Graduate]
+
+        for caste in local_caste_1:
+            if caste['caste']:
+                totals_caste.append(caste['caste'])
+                totals1_caste.append(caste['caste'])
+
+        for caste in local_caste_2:
+            if caste['caste']:
+                totals_caste.append(caste['caste'])
+                totals2_caste.append(caste['caste'])
+
+        caste_labels = np.unique(totals_caste)  # unique lables of total labels eg: [Literature, Post Graduate]
+        lbl_list_caste = []  # list to hold each dictionary with different education labels
+        for cas in caste_labels:
+            dictt = {}
+            coun1 = 0
+            coun2 = 0
+            dictt['label'] = cas
+            for cast in totals1_caste:
+                print("educat: ", cast)
+                if cast == cas:
+                    coun1 = coun1 + 1
+            for cast in totals2_caste:
+                if cast == cas:
+                    coun2 = coun2 + 1
+            dictt['province1'] = coun1
+            dictt['province2'] = coun2
+            lbl_list_caste.append(dictt)
+
+        # # for Party Name
+        # national_party_name_1 = RastriyaShava.objects.filter(district__name=self.kwargs['province1']).values('party_name') \
+        #     .distinct().annotate(total=Count('party_name'))
+        # federal_party_name_1 = PratinidhiShava.objects.filter(district__name=self.kwargs['province1']).values('party_name') \
+        #     .distinct().annotate(total=Count('party_name'))
+        # province_party_name_1 = ProvinceMahilaPratinidhiForm.objects.filter(district__name=self.kwargs['province1']).values(
+        #     'party_name') \
+        #     .distinct().annotate(total=Count('party_name'))
+        local_party_name_1 = MahilaPratinidhiForm.objects.filter(district__name=self.kwargs['province1']).values('party_name') \
+            .distinct().annotate(total=Count('party_name'))
+
+        # national_party_name_2 = RastriyaShava.objects.filter(district__name=self.kwargs['province2']).values('party_name') \
+        #     .distinct().annotate(total=Count('party_name'))
+        # federal_party_name_2 = PratinidhiShava.objects.filter(district__name=self.kwargs['province2']).values('party_name') \
+        #     .distinct().annotate(total=Count('party_name'))
+        # province_party_name_2 = ProvinceMahilaPratinidhiForm.objects.filter(district__name=self.kwargs['province2']).values(
+        #     'party_name') \
+        #     .distinct().annotate(total=Count('party_name'))
+        local_party_name_2 = MahilaPratinidhiForm.objects.filter(district__name=self.kwargs['province2']).values('party_name') \
+            .distinct().annotate(total=Count('party_name'))
+        #
+        # province1_party_name = chain(national_party_name_1, federal_party_name_1, province_party_name_1,
+        #                              local_party_name_1)
+        # province2_party_name = chain(national_party_name_2, federal_party_name_2, province_party_name_2,
+        #                              local_party_name_2)
+
+
+        totals_party_name = []  # total education labels in both hlcits' eg: [Literature, Literature, Post Graduate]
+        totals1_party_name = []  # total labels in province1 eg: [Literature]
+        totals2_party_name = []  # total labels in province2 eg: [Literature, Post Graduate]
+
+        for party_name in local_party_name_1:
+            if party_name['party_name']:
+                totals_party_name.append(party_name['party_name'])
+                totals1_party_name.append(party_name['party_name'])
+
+        for party_name in local_party_name_2:
+            if party_name['party_name']:
+                totals_party_name.append(party_name['party_name'])
+                totals2_party_name.append(party_name['party_name'])
+
+        party_name_labels = np.unique(
+            totals_party_name)  # unique lables of total labels eg: [Literature, Post Graduate]
+        lbl_list_party_name = []  # list to hold each dictionary with different education labels
+        for par in party_name_labels:
+            dictt = {}
+            coun1 = 0
+            coun2 = 0
+            dictt['label'] = par
+            for part in totals1_party_name:
+                print("educat: ", part)
+                if part == par:
+                    coun1 = coun1 + 1
+            for part in totals2_party_name:
+                if part == par:
+                    coun2 = coun2 + 1
+            dictt['province1'] = coun1
+            dictt['province2'] = coun2
+            lbl_list_party_name.append(dictt)
+
+        container['age'] = age_list
+        container['education'] = lbl_list
+        # container['Years in Politics'] = year_list
+        container['Ethnicity'] = lbl_list_caste
+        container['Party Name'] = lbl_list_party_name
+        return Response(container)
+
+class PieChartViewSet(views.APIView):
+
+    def get(self, request, *args, **kwargs):
+        all_dict = {}
+        all_list = []
+
+        total_hlcit = []
+        national_district = RastriyaShava.objects.values('hlcit_code').annotate(total=Count('hlcit_code'))
+        for item in national_district:
+            for i in range(item['total']):
+                if item['hlcit_code']:
+                    total_hlcit.append(item['hlcit_code'])
+
+        federal_district = PratinidhiShava.objects.values('hlcit_code').annotate(total=Count('hlcit_code'))
+        for item in federal_district:
+            for i in range(item['total']):
+                if item['hlcit_code']:
+                    total_hlcit.append(item['hlcit_code'])
+
+        province_district = ProvinceMahilaPratinidhiForm.objects.values('hlcit_code').annotate(total=Count('hlcit_code'))
+        for item in province_district:
+            for i in range(item['total']):
+                if item['hlcit_code']:
+                    total_hlcit.append(item['hlcit_code'])
+
+        code_dict = {}
+        for hlcit in total_hlcit:
+            national_party_name_1 = RastriyaShava.objects.filter(hlcit_code=hlcit).values('party_name') \
+                .distinct().annotate(total=Count('party_name'))
+            federal_party_name_1 = PratinidhiShava.objects.filter(hlcit_code=hlcit).values('party_name') \
+                .distinct().annotate(total=Count('party_name'))
+            province_party_name_1 = ProvinceMahilaPratinidhiForm.objects.filter(
+                hlcit_code=hlcit).values(
+                'party_name') \
+                .distinct().annotate(total=Count('party_name'))
+            local_party_name_1 = MahilaPratinidhiForm.objects.filter(hlcit_code=hlcit).values(
+                'party_name') \
+                .distinct().annotate(total=Count('party_name'))
+
+            hlcit_party_name = chain(national_party_name_1, federal_party_name_1, province_party_name_1, local_party_name_1)
+
+            totals_party_name = []  # total education labels in both hlcits' eg: [Literature, Literature, Post Graduate]
+
+            for name in hlcit_party_name:
+                if name['party_name']:
+                    totals_party_name.append(name['party_name'])
+
+            party_name_labels = np.unique(totals_party_name)  # unique lables of total labels eg: [Literature, Post Graduate]
+            lbl_list_party_name = []  # list to hold each dictionary with different education labels
+            for par in party_name_labels:
+                dictt = {}
+                coun1 = 0
+                dictt['label'] = par
+                for part in totals_party_name:
+                    if part == par:
+                        coun1 = coun1 + 1
+                dictt['value'] = coun1
+                lbl_list_party_name.append(dictt)
+
+            code_dict[hlcit] = lbl_list_party_name
+        all_list.append(code_dict)
+
+        all_dict["all"] = all_list
+
+        return Response(all_dict)
+
+
+

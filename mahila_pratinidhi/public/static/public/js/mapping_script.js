@@ -37,8 +37,6 @@ $(".button-action").on('click',function(){
 var OSM = L.tileLayer('//{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
 
-
-
 });
 
 var empty = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -164,7 +162,7 @@ var ourCustomControl = L.Control.extend({
       console.log("country",country);
       marker_content = data_summary_all["all"][0]
 
-      country.setStyle({fillOpacity:"0.1"})
+      country.setStyle({fillOpacity:"1"})
 
  $.each(country._layers,function(key,value){
 
@@ -576,6 +574,8 @@ function onEachFeature(feature,layer){
 
 function ward_leader(number,center,females,hlcit){
 
+
+
 if(number){
   var marker_cluster = L.markerClusterGroup();
 
@@ -948,7 +948,7 @@ function filter_options(options,idname){
 					selectBox.innerHTML= "<option>"+ "Select" + "</option>" ;
 					for(var i = 0, l = options.length; i < l; i++){
 						  var option = options[i];
-						  selectBox.options.add( new Option(option.name, option.id) );
+						  selectBox.options.add( new Option(option.name, option.hlcit_code || option.id) );
 
 					}
 }
@@ -956,6 +956,7 @@ function filter_options(options,idname){
 $("#leader-province").on('change',function(){
     var myvalue = (this.value).toString();
     $.get(base_url + '/api/districts/?province_id='+ myvalue, function(data){
+    
       filter_options(data,"leader-district");
     })
 
@@ -964,16 +965,46 @@ $("#leader-province").on('change',function(){
 $("#leader-district").on('change',function(){
 
   //needs to change
+    $("#leader-district option:selected").text();
+    /* var myvalue = $("#leader-district option:selected").text(); */
     var myvalue = (this.value).toString();
-    $.get(base_url + '/api/districts/?province_id='+ myvalue, function(data){
-      filter_options(data,"leader-district");
+    $.get(base_url + '/api/municipalities/?district_id='+ myvalue, function(data){
+      filter_options(data,"leader-municipality");
     })
 
 });
 
 
-$('#apply-filter').on('click', function(){
+$('#apply_id').on('click', function(){
 
+  $.each(muni._layers, function(key,value){
+    var hlcit= ($("#leader-municipality option:selected").val())
+    if(value.feature.properties.HLCIT_CODE== hlcit){
+      var geo = value.feature;
+      var muni_layer =L.geoJson(geo,{}).addTo(map);
+      last_layer.push(muni_layer);
+      console.log("hett",value.getBounds());
+      map.fitBounds(value.getBounds());
+      
+      //map.setView([location.coords.latitude, location.coords.longitude], 13);
+      for (var i=0;i<marker_array.length;i++){
+        marker_array[i].removeFrom(map);
+      }
+      $.get(base_url+'/api/hlcit/'+hlcit, function(data){
+
+        var females=data;
+        ward_leader(get_number(value.feature),get_center(value,value),females,hlcit);
+        BindPopupFunction(value.feature,muni_layer);
+
+      })
+
+
+
+
+  }
+});
+
+ 
 
 });
 

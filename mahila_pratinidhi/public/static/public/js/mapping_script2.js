@@ -1,5 +1,16 @@
 var base_url="https://mahilapratinidhi.naxa.com.np";
 //var base_url="http://localhost:8000";
+var layers_array=[];
+var markers_array=[];
+var markers_pie_array=[];
+var markers_pie_all_array=[];
+var count1_visualize =0;
+var count2_visualize =0;
+var compare_variable ="all";
+var name1_visualize ="524 5 54 4 003";
+var name2_visualize="524 1 04 3 007";
+
+
 
 var map =L.map('mapd',{minZoom: 7,maxZoom: 13,zoomSnap:0.7, zoomControl:false,scrollWheelZoom: false}).setView([28.5,84],8);
 
@@ -12,6 +23,25 @@ var CartoDB_DarkMatterNoLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/
 	subdomains: 'abcd',
 	maxZoom: 19
 }).addTo(map);
+ 
+map.on('zoomend', function() {
+/* 	if(map.getZoom() <10.2 && !map.hasLayer(markers_pie_all_array[0])){
+		
+		markers_pie_all_array.map(marker => marker.addTo(map))
+		}
+ */
+ 	if (map.getZoom() <10 && markers_pie_array.length){
+		 
+					map.removeLayer(markers_pie_array[0]);
+					
+	}
+ 
+/* 	if (map.getZoom() >10.2){
+ 		 markers_pie_all_array.map(marker => map.removeLayer(marker))  
+ }
+ */	
+});
+ 
 
 function fetchapi(){
 
@@ -21,7 +51,16 @@ function fetchapi(){
      dataType: 'json',
      async: false,
      success: handleData
-  });
+	});
+	$.ajax({
+		url: base_url+'/api/pie/',
+		type: 'get',
+		dataType: 'jsy:
+
+		on',
+		async: false,
+		success: handlePie
+ });
 
 }
 
@@ -30,11 +69,15 @@ function handleData(data) {
   window["marker_content"] = data["all"][0]
 }
 
+function handlePie(data) {
+  window["data_pie_all"]= data;
+  window["pie_content"] = data["all"][0]
+}
+
 fetchapi();
 
 
-
-var muni =L.geoJson.ajax('https://dfid.naxa.com.np/core/geojson/municipalities/',
+var muni =L.geoJson.ajax(base_url+'/api/geojson/municipality/',
                               {onEachFeature:onEachFeature_discover,
                                style: { color: "white",
                                         weight:0.5,
@@ -44,19 +87,14 @@ var muni =L.geoJson.ajax('https://dfid.naxa.com.np/core/geojson/municipalities/'
                               }).addTo(map);
 
 
-var layers_array=[];
-var markers_array=[];
-var count1_visualize =0;
-var count2_visualize =0;
-var name1_visualize ="";
-var name2_visualize="";
 
 
 function onEachFeature(feature,layer){
 
-  BindFunction(feature,layer);
 
-	  circular_marker(get_center(feature,layer),get_number(feature),get_code(feature));
+	BindFunction(feature,layer);
+
+	  //circular_marker(get_center(feature,layer),get_number(feature),get_code(feature));
 	  //layer.bindPopup(customPopup,customOptions);
 
 
@@ -69,10 +107,10 @@ function onEachFeature(feature,layer){
 }
 
 function onEachFeature_discover(feature,layer){
-
   BindFunction(feature,layer);
   circular_marker(get_center(feature,layer),get_number(feature),get_code(feature));
 	  //layer.bindPopup(customPopup,customOptions);
+		
 
 
   layer.on({
@@ -85,8 +123,9 @@ function onEachFeature_discover(feature,layer){
 
 function BindFunction(feature,layer){
 
-  layer.bindTooltip(get_name(feature),{sticky:true,permanent: false});
 
+  layer.bindTooltip(get_name(feature),{sticky:true,permanent: false});
+	
 }
 
 
@@ -98,23 +137,28 @@ function circular_marker(center,number,code){
 
       if (number){
 
+
+
 				var myIcon = L.divIcon({
 	          className:'my-div-icon',
 	          iconSize: new L.Point(number*2.5, number*2.5),
-	          html: `<div id=$(code)></div>`,
-
-	      });
+	          html: `<div id='mun${code.replace(/\s/g,"_")}'></div>`,
+				});
+				
 
 	      // you can set .my-div-icon styles in CSS
-	      let marker= L.marker(center, {icon: myIcon}).addTo(map);
-				markers_array.push(marker);
-
+				console.log("center",center)
+				let marker= L.marker([center[1],center[0]], {icon: myIcon});
+				marker.addTo(map);
+				markers_pie_all_array.push(marker);
+				let pie_data = pie_content[code]
+  			piechart(pie_data,'mun'+code.replace(/\s/g,"_",10),10) 
+ 
 
 			  }
       else{
         number=0;
       }
-
 
 
 
@@ -141,20 +185,33 @@ function circular_marker(center,number,code){
 
   function discoverOnClick(e){
 
-    map.fitBounds(e.target.getBounds(),{padding:[25,25]});
+		if(markers_pie_array.length){
+			map.removeLayer(markers_pie_array[0])
+			markers_pie_array=[]
+		}
+		map.fitBounds(e.target.getBounds(),{padding:[25,25]});
+ 		
+		/* map.setView(e.target.getBounds().getCenter(), 12); */
+		var myIcon = L.divIcon({
+			className:'my-pie-icon',
+			iconSize: new L.Point(200, 200),
+			html: `<div id='my-pie-icon-chart'></div>`,
+	});
+	
+	let center = e.target.getBounds().getCenter()
+	// you can set .my-div-icon styles in CSS
+	let marker= L.marker(center, {icon: myIcon}).addTo(map);
+	markers_pie_array.push(marker);
+	var hlcit_discover= e.target.feature.properties["HLCIT_CODE"]
+	var pie_data= pie_content[hlcit_discover]
+	piechart(pie_data,"my-pie-icon-chart") 
 
 
     $("#sideinfoid").addClass("sideinfo");
-    console.log("ee",e.target.feature.properties["HLCIT_CODE"])
-var hlcit_discover= e.target.feature.properties["HLCIT_CODE"]
-
-
-
-
     $.get(base_url+"/api/hlcit/"+hlcit_discover,function(data){
 
-      console.log(data)
-      $("#sideinfoid ul").html("")
+			$("#sideinfoid ul").html("");
+			$("#sideinfoid ul").append(`<h5>${e.target.feature.properties["LU_Name"]} ${e.target.feature.properties["LU_Type"]}</h5>`)
 
 
       data.map((dict)=>{
@@ -177,44 +234,81 @@ var hlcit_discover= e.target.feature.properties["HLCIT_CODE"]
 
 
   function zoomToFeature(e){
-  //
-  //   layers_array.map((f)=>
-  //   {
-  //
-  //     f.setStyle({"color":"white"})
-  //   }
-  // )
-  //   e.target.setStyle({"color":"blue"})
+  	
+	var properties_object = e.target.feature.properties;
+	
+	switch (Object.keys(properties_object).length){
+		case 1:
+			var properties_name = properties_object.Province;
+			break;
+									
+		case 13:
+			var properties_name = properties_object.HLCIT_CODE;
+			break;
 
-        if(e.target._map._container.id=='mapd1'){
+		case 147:
+		var properties_name = properties_object.DISTRICT;
+		break;
+
+		default:
+			break;
+	}
+
+				
+	
+	if(e.target._map._container.id=='mapd1'){
+
+					layers_array[0].setStyle({"color":"white"})
+					e.target.setStyle({"color":"blue"})
           count1_visualize =1;
-          map1.fitBounds(e.target.getBounds(),{padding:[25,25]});
+					map1.fitBounds(e.target.getBounds(),{padding:[25,25]});
+					name1_visualize= properties_name;
 
         }
 
-        else if(e.target._map._container.id=='mapd2'){
+  else if(e.target._map._container.id=='mapd2'){
+					layers_array[1].setStyle({"color":"white"})
+					e.target.setStyle({"color":"green"})
+
           count2_visualize =1;
-          map2.fitBounds(e.target.getBounds(),{padding:[25,25]});
+					map2.fitBounds(e.target.getBounds(),{padding:[25,25]});
+					name2_visualize= properties_name;
         }
 
-    var properties_object = e.target.feature.properties;
-    if(Object.keys(properties_object).length=="1"){
-      var properties_name = properties_object.Province;
-
-    }
-    else if(Object.keys(properties_object).length=="11"){
-      var properties_name = properties_object.LU_Name;
-
-    }
-
-    else if(Object.keys(properties_object).length >11){
-      var properties_name = properties_object.DISTRICT;
-    }
+    
     if(count1_visualize && count2_visualize){
-      $("#data-viz-map").addClass("showmap");
+			$("#data-viz-map").addClass("showviz");
+			$("#data-viz-map").removeClass("hidemap");
+/* 			let base_url="http://localhost:8000"; */
+			$("#c3chart-1").html("")
+			$("#c3chart-2").html("")
+			$("#c3chart-3").html("")
+			$("#c3chart-4").html("")
+			$("#c3chart-5").html("")
+
+			if(!compare_variable){compare_variable = "all"}
+			alert(base_url+"/api/"+compare_variable +"/"+name1_visualize+"/"+name2_visualize)
+			
+			$.get(base_url+"/api/"+compare_variable +"/"+name1_visualize+"/"+name2_visualize, function(data){
+				stackedChart(data["education"],[name1_visualize,name2_visualize],"c3chart-1",["blue","green"]);
+				stackedChart(data["Ethnicity"],[name1_visualize,name2_visualize],"c3chart-2",["blue","green"]);
+				stackedChart(data["Party Name"],[name1_visualize,name2_visualize],"c3chart-3",["blue","green"]);
+				kernel(data["age"],[name1_visualize,name2_visualize],"c3chart-4");
+				kernel(data["Years in Politics"],[name1_visualize,name2_visualize],"c3chart-5");
+
+			})
+			           
+	
       $('html, body').animate({
              scrollTop: $("#data-viz-map").offset().top
-         }, 4000);
+				 }, 2000); 
+
+				 count1_visualize= 0;
+				 count2_visualize=0;
+			
+			
+				 
+		
     }
 
 
@@ -228,7 +322,7 @@ var hlcit_discover= e.target.feature.properties["HLCIT_CODE"]
 
     var properties_object = feature.properties;
 
-    if(Object.keys(properties_object).length=="11"){
+    if(Object.keys(properties_object).length=="13"){
       var xx = feature.properties.LU_Name;
 
     }
@@ -243,7 +337,15 @@ var hlcit_discover= e.target.feature.properties["HLCIT_CODE"]
   }
 
 	function get_center(feature,layer){
-	  var center =(layer.getBounds().getCenter());
+		if (Object.keys(feature.properties).length=="13"){
+			
+			var center =[feature.properties.centroid_X,feature.properties.cenroid_Y];
+
+		}
+		else{
+			var center =(layer.getBounds().getCenter());
+		}
+	  
 	  return center;
 
 	}
@@ -251,9 +353,8 @@ var hlcit_discover= e.target.feature.properties["HLCIT_CODE"]
 	function get_number(feature){
 
 	  var properties_object = feature.properties;
-
-	  if (Object.keys(properties_object).length=="11"){
-	    var xx = get_code(feature)
+	  if (Object.keys(properties_object).length=="13"){
+			var xx = get_code(feature)
 
 
 	  }
@@ -267,7 +368,7 @@ var hlcit_discover= e.target.feature.properties["HLCIT_CODE"]
 
 	function get_code(feature){
 	  var properties_object = feature.properties;
-	  if (Object.keys(properties_object).length=="11"){
+	  if (Object.keys(properties_object).length=="13"){
 	   var xx = feature.properties['HLCIT_CODE'];
 	 }
 
@@ -289,9 +390,12 @@ $(".compare-area-select").on('change',function(){
   $("#sideinfoid").removeClass("sideinfo");
 
 
+	$(".discover").addClass("hidemap")
+
 	$("#mapd").addClass("hidemap");
 	$("#mapd").removeClass("showmap");
 	$("#map-compare-div").addClass("showmap");
+	$("#map-compare-div").removeClass("hidemap");
 
 if($("#mapd1").children().length){
 
@@ -335,7 +439,7 @@ else{
 
 	switch($(this).find(":selected").text()){
 		case "Provinces":
-
+					compare_variable= "province";
 					layers_array.map((e)=> {map1.removeLayer(e);
 						map2.removeLayer(e);
 
@@ -365,6 +469,8 @@ else{
 
 		case "Districts":
 
+
+		compare_variable= "district";
 		layers_array.map((e)=> {map1.removeLayer(e);
 			map2.removeLayer(e);
 
@@ -396,7 +502,7 @@ else{
 
 		case "Municipalities":
 
-
+		compare_variable= "all";						
 		layers_array.map((e)=> {map1.removeLayer(e);
 			map2.removeLayer(e);
 
@@ -404,7 +510,7 @@ else{
 
 		layers_array =[];
 				layers_array.push(
-				L.geoJson.ajax('https://dfid.naxa.com.np/core/geojson/municipalities/',
+				L.geoJson.ajax(base_url+'/api/geojson/municipality/',
 																	{onEachFeature:onEachFeature,
 																	 style: { color: "white",
 																						weight:0.5,
@@ -413,7 +519,7 @@ else{
 																						}
 																	}).addTo(map1),
 
-			L.geoJson.ajax('https://dfid.naxa.com.np/core/geojson/municipalities/',
+			L.geoJson.ajax(base_url+'/api/geojson/municipality/',
 																	                              {onEachFeature:onEachFeature,
 																	                               style: { color: "white",
 																	                                        weight:0.5,
@@ -457,7 +563,8 @@ $("#discover-map").on('click',function(){
 	$("#map-compare-div").addClass("hidemap");
 	$("#map-compare-div").removeClass("showmap");
   $("#data-viz-map").addClass("hidemap");
-  $("#data-viz-map").removeClass("showmap");
+	$("#data-viz-map").removeClass("showviz");
+	$(".discover").removeClass("hidemap");
   count1_visualize=0;
   count2_visualize=0;
 });

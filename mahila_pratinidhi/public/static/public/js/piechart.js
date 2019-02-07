@@ -1,71 +1,54 @@
-class PieChart extends React.Component{
+function piechart(data,elementid,size){
 
-  constructor(props){
-    super(props)
-    this.piechart= this.piechart.bind(this);
+console.log("pasoyoo")
+elementid = elementid || "my-pie-icon-chart";
+
+
+var w = size || 100;
+  var h = size || 100;
+  var r = h/2;
+  var aColor = {
+      'Communist Party of Nepal':'red',
+      'Nepali Congress':'green',
+      'Federal Socialist Forum':'blue',
+      'Rastriya Janata Party Nepal':'yellow',
+      'Bebeksheel Sajha Party':'brown'
   }
+  
+  var data = data || [
+      {"label":"Colorectale levermetastase", "value":74}, 
+      {"label": "Primaire maligne levertumor", "value":12},
+      {"label":"Levensmetatase van andere origine", "value":7}, 
+      {"label":"Beningne levertumor", "value":7}
+  ];
 
-  componentDidMount(){
-
-    console.log("dataaa",this.props.data[0].data);
-
-    this.piechart(this.props.data[0].data);
-
-  }
-
-  piechart(data){
-
-    var margin = {top: 20, right: 170, bottom: 50, left: 30};
-var color =["#69131a","#e86c75","#faa2ad","#ac779d","#4b1b31" ,"#f441a6","#f44141"];
-    var width = 700 - margin.left - margin.right,
-        height = 350 - margin.top - margin.bottom;
-
-
-    var pieGenerator = d3.layout.pie();
-  var arcs = pieGenerator([1,2,3]);
-
-  const svg = d3.selectAll(".pie-chart")
+  var vis = d3.select('#'+elementid)
+  .append('svg')
+  .attr("class","pie-svg")
+  .data([data]).attr("width", w).attr("height", h).attr("transform", "translate(" + r + "," + r*1.5 + ")");
+  var pie = d3.layout.pie().value(function(d){return d.value;});
+  // Declare an arc generator function
+  var arc = d3.svg.arc().outerRadius(r);
+  
+  // Select paths, use arc generator to draw
+  var arcs = vis.selectAll("g.slice").data(pie).enter().append("svg:g").attr("class", "slice");
+  arcs.append("svg:path")
+      .attr("fill", function(d, i){
+                                    return aColor[d.data.label]?aColor[d.data.label]:'purple';})
+      .attr("d", function (d) {return arc(d);})
+  ;
+  
+  // Add the text
+ /*  arcs.append("svg:text")
+      .attr("transform", function(d){
+          d.innerRadius = r/2;
+          d.outerRadius = r;
+          return "translate(" + arc.centroid(d) + ")";}
+      )
       .attr("text-anchor", "middle")
-      .style("font", "12px sans-serif");
-
-  const g = svg.append("g")
-      .attr("transform", `translate(${width / 2},${height / 2})`);
-
-  g.selectAll("path")
-    .data(arcs)
-    .enter().append("path")
-      .attr("fill", (d,k) => color[k])
-      .attr("stroke", "white")
-      .attr("d", arc)
-    .append("title")
-      .text(d => `${d.data.name}: ${d.data.value.toLocaleString()}`);
-
-  const text = g.selectAll("text")
-    .data(arcs)
-    .enter().append("text")
-      .attr("transform", d => `translate(${arcLabel.centroid(d)})`)
-      .attr("dy", "0.35em");
-
-  text.append("tspan")
-      .attr("x", 0)
-      .attr("y", "-0.7em")
-      .style("font-weight", "bold")
-      .text(d => d.data.name);
-
-  text.filter(d => (d.endAngle - d.startAngle) > 0.25).append("tspan")
-      .attr("x", 0)
-      .attr("y", "0.7em")
-      .attr("fill-opacity", 0.7)
-      .text(d => d.data.value.toLocaleString());
-
+      .text( function(d, i) {return data[i].value + '%';}); */
 }
 
 
 
 
-  render(){
-
-    return(<svg className="pie-chart" />)
-  }
-
-}
